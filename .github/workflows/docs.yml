@@ -33,23 +33,43 @@ jobs:
       run: |
         terraform-docs markdown table --output-file README.md --output-mode inject .
         
-    - name: Configure Git
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-    - name: Commit documentation changes
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      run: |
-        git add modules/${{ matrix.module }}/README.md
-        if ! git diff-index --quiet HEAD; then
-          git commit -m "docs: update ${{ matrix.module }} documentation"
-          git push
-        fi
-        
     - name: Upload documentation
       uses: actions/upload-artifact@v4
       with:
         name: docs-${{ matrix.module }}
         path: modules/${{ matrix.module }}/README.md
+
+  commit-docs:
+    needs: generate-docs
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Download all documentation artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Copy documentation to module directories
+      run: |
+        for module in vpc ec2 ecs lambda s3; do
+          if [ -f "docs-$module/README.md" ]; then
+            cp "docs-$module/README.md" "modules/$module/README.md"
+          fi
+        done
+        
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+    - name: Commit documentation changes
+      run: |
+        git add modules/*/README.md
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "docs: update module documentation"
+          git push
+        fi
