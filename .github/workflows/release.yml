@@ -27,7 +27,7 @@ jobs:
       run: |
         if [ "${{ github.event.inputs.modules }}" != "" ] && [ "${{ github.event.inputs.modules }}" != "all" ]; then
           # Convert comma-separated to JSON array
-          MODULES_JSON=$(echo "${{ github.event.inputs.modules }}" | sed 's/,/","/g' | sed 's/^/[""/' | sed 's/$/"]/')
+          MODULES_JSON=$(echo "${{ github.event.inputs.modules }}" | sed 's/,/","/g' | sed 's/^/["/; s/$/"]/')
           echo "changed-modules=$MODULES_JSON" >> $GITHUB_OUTPUT
         else
           # Get changed files since last tag
@@ -50,8 +50,12 @@ jobs:
           done
           
           # Convert to JSON array
-          MODULES_JSON=$(printf '"%s\n' "${MODULES[@]}" | paste -sd ',' | sed 's/^/[/; s/$/]/')
-          echo "changed-modules=$MODULES_JSON" >> $GITHUB_OUTPUT
+          if [ ${#MODULES[@]} -eq 0 ]; then
+            echo 'changed-modules=[]' >> $GITHUB_OUTPUT
+          else
+            MODULES_JSON=$(printf '"%s",' "${MODULES[@]}" | sed 's/,$//')
+            echo "changed-modules=[$MODULES_JSON]" >> $GITHUB_OUTPUT
+          fi
         fi
         
     - name: Output changed modules
