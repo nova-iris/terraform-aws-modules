@@ -15,7 +15,11 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      changed-modules: ${{ steps.detect.outputs.changed-modules }}
+      vpc: ${{ steps.detect.outputs.vpc }}
+      ec2: ${{ steps.detect.outputs.ec2 }}
+      ecs: ${{ steps.detect.outputs.ecs }}
+      lambda: ${{ steps.detect.outputs.lambda }}
+      s3: ${{ steps.detect.outputs.s3 }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -26,9 +30,13 @@ jobs:
       id: detect
       run: |
         if [ "${{ github.event.inputs.modules }}" != "" ] && [ "${{ github.event.inputs.modules }}" != "all" ]; then
-          # Convert comma-separated to JSON array
-          MODULES_JSON=$(echo "${{ github.event.inputs.modules }}" | sed 's/,/","/g' | sed 's/^/["/; s/$/"]/')
-          echo "changed-modules=$MODULES_JSON" >> $GITHUB_OUTPUT
+          # Parse specific modules from input
+          INPUT_MODULES="${{ github.event.inputs.modules }}"
+          echo "vpc=$(echo $INPUT_MODULES | grep -q 'vpc' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "ec2=$(echo $INPUT_MODULES | grep -q 'ec2' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "ecs=$(echo $INPUT_MODULES | grep -q 'ecs' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "lambda=$(echo $INPUT_MODULES | grep -q 'lambda' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "s3=$(echo $INPUT_MODULES | grep -q 's3' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
         else
           # Get changed files since last tag
           if git describe --tags --abbrev=0 > /dev/null 2>&1; then
@@ -38,37 +46,42 @@ jobs:
             CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
           fi
           
-          # Extract changed modules
-          MODULES=()
-          for file in $CHANGED_FILES; do
-            if [[ $file =~ ^modules/([^/]+)/ ]]; then
-              MODULE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-              if [[ ! " ${MODULES[@]} " =~ " ${MODULE} " ]]; then
-                MODULES+=("$MODULE")
-              fi
-            fi
-          done
-          
-          # Convert to JSON array
-          if [ ${#MODULES[@]} -eq 0 ]; then
-            echo 'changed-modules=[]' >> $GITHUB_OUTPUT
-          else
-            MODULES_JSON=$(printf '"%s",' "${MODULES[@]}" | sed 's/,$//')
-            echo "changed-modules=[$MODULES_JSON]" >> $GITHUB_OUTPUT
-          fi
+          # Check which modules have changes
+          echo "vpc=$(echo "$CHANGED_FILES" | grep -q '^modules/vpc/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "ec2=$(echo "$CHANGED_FILES" | grep -q '^modules/ec2/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "ecs=$(echo "$CHANGED_FILES" | grep -q '^modules/ecs/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "lambda=$(echo "$CHANGED_FILES" | grep -q '^modules/lambda/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "s3=$(echo "$CHANGED_FILES" | grep -q '^modules/s3/' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
         fi
         
     - name: Output changed modules
-      run: echo "Changed modules: ${{ steps.detect.outputs.changed-modules }}"
+      run: |
+        echo "VPC: ${{ steps.detect.outputs.vpc }}"
+        echo "EC2: ${{ steps.detect.outputs.ec2 }}"
+        echo "ECS: ${{ steps.detect.outputs.ecs }}"
+        echo "Lambda: ${{ steps.detect.outputs.lambda }}"
+        echo "S3: ${{ steps.detect.outputs.s3 }}"
 
   release-modules:
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.changed-modules != ''
     
     strategy:
       matrix:
-        module: ${{ fromJson(needs.detect-changes.outputs.changed-modules) }}
+        module: [vpc, ec2, ecs, lambda, s3]
+        include:
+          - module: vpc
+            enabled: ${{ needs.detect-changes.outputs.vpc }}
+          - module: ec2
+            enabled: ${{ needs.detect-changes.outputs.ec2 }}
+          - module: ecs
+            enabled: ${{ needs.detect-changes.outputs.ecs }}
+          - module: lambda
+            enabled: ${{ needs.detect-changes.outputs.lambda }}
+          - module: s3
+            enabled: ${{ needs.detect-changes.outputs.s3 }}
+    
+    if: matrix.enabled == 'true'
         
     steps:
     - name: Checkout code
