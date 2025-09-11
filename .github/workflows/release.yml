@@ -180,12 +180,12 @@ jobs:
         echo "EOF" >> $GITHUB_OUTPUT
         
     - name: Create GitHub Release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.tag.outputs.tag }}
-        release_name: "${{ matrix.module }} ${{ steps.new-version.outputs.new-version }}"
+        name: "${{ matrix.module }} ${{ steps.new-version.outputs.new-version }}"
         body: ${{ steps.changelog.outputs.changelog }}
         draft: false
         prerelease: false

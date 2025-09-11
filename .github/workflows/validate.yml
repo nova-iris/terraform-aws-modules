@@ -50,7 +50,7 @@ jobs:
           
     - name: Upload Terraform validation results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-validation-${{ matrix.terraform-version }}
         path: |
@@ -104,7 +104,7 @@ jobs:
       
     - name: Upload example plan
       if: steps.check_example.outputs.exists == 'true'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: plan-${{ matrix.module }}-${{ matrix.example }}
         path: modules/${{ matrix.module }}/examples/${{ matrix.example }}/plan.txt
