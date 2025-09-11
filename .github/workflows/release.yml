@@ -68,7 +68,6 @@ jobs:
     
     strategy:
       matrix:
-        module: [vpc, ec2, ecs, lambda, s3]
         include:
           - module: vpc
             enabled: ${{ needs.detect-changes.outputs.vpc }}
