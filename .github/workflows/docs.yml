@@ -1,0 +1,55 @@
+name: Generate Documentation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        module: [vpc, ec2, ecs, lambda, s3]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      
+    - name: Install terraform-docs
+      run: |
+        wget https://github.com/terraform-docs/terraform-docs/releases/download/v0.16.0/terraform-docs-v0.16.0-linux-amd64.tar.gz
+        tar -xzf terraform-docs-v0.16.0-linux-amd64.tar.gz
+        sudo mv terraform-docs /usr/local/bin/
+        
+    - name: Generate module documentation
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        terraform-docs markdown table --output-file README.md --output-mode inject .
+        
+    - name: Configure Git
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+    - name: Commit documentation changes
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        git add modules/${{ matrix.module }}/README.md
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "docs: update ${{ matrix.module }} documentation"
+          git push
+        fi
+        
+    - name: Upload documentation
+      uses: actions/upload-artifact@v3
+      with:
+        name: docs-${{ matrix.module }}
+        path: modules/${{ matrix.module }}/README.md

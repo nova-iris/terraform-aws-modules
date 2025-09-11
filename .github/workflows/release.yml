@@ -1,0 +1,196 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      modules:
+        description: 'Modules to release (comma-separated, or "all" for all changed modules)'
+        required: false
+        default: 'all'
+        type: string
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed-modules: ${{ steps.detect.outputs.changed-modules }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Detect changed modules
+      id: detect
+      run: |
+        if [ "${{ github.event.inputs.modules }}" != "" ] && [ "${{ github.event.inputs.modules }}" != "all" ]; then
+          echo "changed-modules=${{ github.event.inputs.modules }}" >> $GITHUB_OUTPUT
+        else
+          # Get changed files since last tag
+          if git describe --tags --abbrev=0 > /dev/null 2>&1; then
+            LAST_TAG=$(git describe --tags --abbrev=0)
+            CHANGED_FILES=$(git diff --name-only $LAST_TAG HEAD)
+          else
+            CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
+          fi
+          
+          # Extract changed modules
+          MODULES=()
+          for file in $CHANGED_FILES; do
+            if [[ $file =~ ^modules/([^/]+)/ ]]; then
+              MODULE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+              if [[ ! " ${MODULES[@]} " =~ " ${MODULE} " ]]; then
+                MODULES+=("$MODULE")
+              fi
+            fi
+          done
+          
+          echo "changed-modules=$(IFS=,; echo "${MODULES[*]}")" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Output changed modules
+      run: echo "Changed modules: ${{ steps.detect.outputs.changed-modules }}"
+
+  release-modules:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-modules != ''
+    
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.detect-changes.outputs.changed-modules) }}
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install conventional-commit tools
+      run: npm install -g conventional-changelog-conventionalcommits standard-version
+      
+    - name: Determine version bump
+      id: version
+      run: |
+        # Get commits since last tag for this module
+        MODULE=${{ matrix.module }}
+        if git describe --tags --match "${MODULE}-*" --abbrev=0 > /dev/null 2>&1; then
+          LAST_TAG=$(git describe --tags --match "${MODULE}-*" --abbrev=0)
+          COMMITS=$(git log --pretty=format:"%s" $LAST_TAG..HEAD -- modules/$MODULE)
+        else
+          COMMITS=$(git log --pretty=format:"%s" --all -- modules/$MODULE)
+        fi
+        
+        # Analyze commits for version bump
+        if echo "$COMMITS" | grep -q "BREAKING CHANGE"; then
+          BUMP="major"
+        elif echo "$COMMITS" | grep -q "^feat:"; then
+          BUMP="minor"
+        elif echo "$COMMITS" | grep -q "^fix:"; then
+          BUMP="patch"
+        else
+          BUMP="patch"
+        fi
+        
+        echo "bump=$BUMP" >> $GITHUB_OUTPUT
+        echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+        
+    - name: Get current version
+      id: current-version
+      run: |
+        MODULE=${{ matrix.module }}
+        if git describe --tags --match "${MODULE}-*" --abbrev=0 > /dev/null 2>&1; then
+          LAST_TAG=$(git describe --tags --match "${MODULE}-*" --abbrev=0)
+          CURRENT_VERSION=$(echo $LAST_TAG | sed "s/${MODULE}-//")
+        else
+          CURRENT_VERSION="0.0.0"
+        fi
+        echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Calculate new version
+      id: new-version
+      run: |
+        CURRENT_VERSION=${{ steps.current-version.outputs.current-version }}
+        BUMP=${{ steps.version.outputs.bump }}
+        
+        IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+        MAJOR=${VERSION_PARTS[0]}
+        MINOR=${VERSION_PARTS[1]}
+        PATCH=${VERSION_PARTS[2]}
+        
+        case $BUMP in
+          "major")
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+          "minor")
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+          "patch")
+            PATCH=$((PATCH + 1))
+            ;;
+        esac
+        
+        NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Create and push tag
+      id: tag
+      run: |
+        MODULE=${{ matrix.module }}
+        NEW_VERSION=${{ steps.new-version.outputs.new-version }}
+        TAG="${MODULE}-${NEW_VERSION}"
+        
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        git tag -a $TAG -m "Release $MODULE version $NEW_VERSION"
+        git push origin $TAG
+        
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        MODULE=${{ matrix.module }}
+        NEW_VERSION=${{ steps.new-version.outputs.new-version }}
+        TAG=${{ steps.tag.outputs.tag }}
+        
+        CHANGELOG="## $MODULE $NEW_VERSION ($(date +%Y-%m-%d))
+        
+        ### Changes
+        
+        ${{ steps.version.outputs.commits }}
+        
+        ---
+        
+        "
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        release_name: "${{ matrix.module }} ${{ steps.new-version.outputs.new-version }}"
+        body: ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: false
+        
+    - name: Comment on release
+      run: |
+        echo "🎉 Released ${{ matrix.module }} version ${{ steps.new-version.outputs.new-version }}"
+        echo "🔗 https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.tag }}"

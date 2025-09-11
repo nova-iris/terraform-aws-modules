@@ -1,0 +1,14 @@
+# Global code owners
+* @nova-iris/admins
+
+# Module-specific code owners
+/modules/vpc/ @nova-iris/network-team
+/modules/ec2/ @nova-iris/compute-team
+/modules/ecs/ @nova-iris/containers-team
+/modules/lambda/ @nova-iris/serverless-team
+/modules/s3/ @nova-iris/storage-team
+
+# CI/CD and infrastructure
+/.github/ @nova-iris/devops-team
+# Emergency code owners (can be used for critical security issues)
+* @nova-iris/security-team
