@@ -27,7 +27,7 @@ resource "local_file" "lambda_function" {
 }
 
 module "lambda" {
-  source = "../../.."
+  source = "../../../lambda"
 
   function_name    = "basic-lambda-function"
   description      = "Basic Lambda function for validation"

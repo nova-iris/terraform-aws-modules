@@ -7,7 +7,7 @@ provider "aws" {
 }
 
 module "vpc" {
-  source = "../../.."
+  source = "../../../vpc"
 
   name = "complete-vpc"
   cidr = "172.16.0.0/16"

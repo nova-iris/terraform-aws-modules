@@ -99,7 +99,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 }
 
 module "ec2" {
-  source = "../../.."
+  source = "../../../ec2"
 
   name           = "complete-ec2-instance"
   ami            = data.aws_ami.amazon_linux_2.id

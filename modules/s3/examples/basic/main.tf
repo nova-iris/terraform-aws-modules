@@ -7,7 +7,7 @@ provider "aws" {
 }
 
 module "s3" {
-  source = "../../.."
+  source = "../../../s3"
 
   bucket_name = "basic-s3-bucket-${random_suffix.unique.result}"
   

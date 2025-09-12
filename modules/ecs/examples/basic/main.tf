@@ -26,7 +26,7 @@ module "vpc" {
 }
 
 module "ecs" {
-  source = "../../.."
+  source = "../../../ecs"
 
   cluster_name = "basic-ecs-cluster"
   service_name  = "basic-web-service"

@@ -47,7 +47,7 @@ module "vpc" {
 }
 
 module "ec2" {
-  source = "../../.."
+  source = "../../../ec2"
 
   name           = "advanced-ec2-instance"
   ami            = data.aws_ami.amazon_linux_2.id
