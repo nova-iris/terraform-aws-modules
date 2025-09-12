@@ -114,7 +114,7 @@ jobs:
         
     - name: Validate Example
       if: steps.check_example.outputs.exists == 'true'
-      uses: ./.github/workflows/example-validation.yml
+      uses: ./.github/workflows/example-validation.yml@main
       with:
         module: ${{ matrix.module }}
         example: ${{ matrix.example }}
