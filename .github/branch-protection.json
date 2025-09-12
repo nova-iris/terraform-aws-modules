@@ -1,7 +1,27 @@
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Validate"]
+    "contexts": [
+      "Validate",
+      "Validate / validate (1.0)",
+      "Validate / validate (1.5)", 
+      "Validate / validate (latest)",
+      "Validate / validate-examples (vpc, basic)",
+      "Validate / validate-examples (vpc, advanced)", 
+      "Validate / validate-examples (vpc, complete)",
+      "Validate / validate-examples (ec2, basic)",
+      "Validate / validate-examples (ec2, advanced)",
+      "Validate / validate-examples (ec2, complete)",
+      "Validate / validate-examples (ecs, basic)",
+      "Validate / validate-examples (ecs, advanced)",
+      "Validate / validate-examples (ecs, complete)",
+      "Validate / validate-examples (lambda, basic)",
+      "Validate / validate-examples (lambda, advanced)",
+      "Validate / validate-examples (lambda, complete)",
+      "Validate / validate-examples (s3, basic)",
+      "Validate / validate-examples (s3, advanced)",
+      "Validate / validate-examples (s3, complete)"
+    ]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
@@ -9,5 +29,9 @@
     "dismiss_stale_reviews": true,
     "require_code_owner_reviews": true
   },
-  "restrictions": null
+  "restrictions": null,
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "block_creations": true
 }

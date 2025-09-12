@@ -7,9 +7,9 @@ provider "aws" {
 }
 
 module "vpc" {
-  source = "../../"
+  source = "../../.."
 
-  name = "simple-vpc"
+  name = "basic-vpc"
   cidr = "10.0.0.0/16"
 
   azs             = ["us-east-1a", "us-east-1b"]
@@ -19,11 +19,8 @@ module "vpc" {
   enable_nat_gateway = true
   single_nat_gateway = true
 
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
   tags = {
     Environment = "dev"
-    Project     = "simple-vpc"
+    Project     = "basic-vpc-example"
   }
 }
