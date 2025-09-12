@@ -57,14 +57,14 @@ jobs:
         done
         
         # Remove duplicates and sort
-        UNIQUE_MODULES=$(echo "${CHANGED_MODULES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+        UNIQUE_MODULES=$(echo "${CHANGED_MODULES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         
         # Debug: show what files were detected as changed
         echo "All changed files: $CHANGED_FILES"
         echo "UNIQUE_MODULES before fallback: '$UNIQUE_MODULES'"
         
         # If no modules changed but this is a workflow change, validate all modules
-        if [[ -z "$UNIQUE_MODULES" ]]; then
+        if [[ -z "$UNIQUE_MODULES" ]] || [[ "$UNIQUE_MODULES" == " " ]]; then
           if echo "$CHANGED_FILES" | grep -q "\.github/workflows/"; then
             echo "Workflow file changed, validating all modules"
             UNIQUE_MODULES="vpc ec2 ecs lambda s3"
