@@ -50,7 +50,7 @@ output "nat_public_ips" {
 
 output "nat_gateway_ids" {
   description = "List of NAT Gateway IDs"
-  value       = module.vpc.nat_gateway_ids
+  value       = module.vpc.natgw_ids
 }
 
 output "vpc_main_route_table_id" {
