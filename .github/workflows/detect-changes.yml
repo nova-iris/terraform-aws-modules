@@ -112,7 +112,7 @@ jobs:
       uses: actions/github-script@v7
       with:
         script: |
-          const { module } = context.payload.inputs || { module: '${{ matrix.module }}' };
+          const moduleName = '${{ matrix.module }}';
           
           // Trigger the module-specific validation workflow
           await github.rest.actions.createWorkflowDispatch({
@@ -121,9 +121,9 @@ jobs:
             workflow_id: 'validate-module.yml',
             ref: context.ref,
             inputs: {
-              module: '${{ matrix.module }}',
+              module: moduleName,
               ref: context.sha
             }
           });
           
-          console.log(`Triggered validation for module: ${{ matrix.module }}`);
+          console.log(`Triggered validation for module: ${moduleName}`);
