@@ -82,25 +82,11 @@ jobs:
         # Find changed files
         CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
         
-        # Extract changed modules
-        CHANGED_MODULES=""
-        for file in $CHANGED_FILES; do
-          if [[ $file == modules/* ]]; then
-            MODULE=$(echo $file | cut -d'/' -f2)
-            if [[ ! " $CHANGED_MODULES " =~ " $MODULE " ]]; then
-              CHANGED_MODULES="$CHANGED_MODULES $MODULE"
-            fi
-          fi
-        done
-        
-        # If no modules changed, validate all modules
-        if [ -z "$CHANGED_MODULES" ]; then
-          CHANGED_MODULES="vpc ec2 ecs lambda s3"
-        fi
+        # For now, validate all modules to ensure the workflow works
+        CHANGED_MODULES="vpc ec2 ecs lambda s3"
         
         # Convert to JSON array
-        JSON_ARRAY="[\"$(echo $CHANGED_MODULES | sed 's/ /", "/g')\"]"
-        echo "changed-modules=$JSON_ARRAY" >> $GITHUB_OUTPUT
+        echo "changed-modules=[\"vpc\", \"ec2\", \"ecs\", \"lambda\", \"s3\"]" >> $GITHUB_OUTPUT
         
         echo "Changed modules detected: $CHANGED_MODULES"
 
