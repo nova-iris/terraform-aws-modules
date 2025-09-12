@@ -3,8 +3,14 @@ name: Validate
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'modules/vpc/**'
+      - '.github/workflows/validate.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'modules/vpc/**'
+      - '.github/workflows/validate.yml'
   workflow_dispatch:
 
 jobs:
@@ -20,7 +26,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ${{ matrix.terraform-version }}
         
@@ -39,7 +45,7 @@ jobs:
       
     - name: Comment PR
       if: failure() && github.event_name == 'pull_request'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           github.rest.issues.createComment({
@@ -58,225 +64,29 @@ jobs:
           .terraform/
           *.tfstate*
 
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      changed-modules: ${{ steps.changes.outputs.changed-modules }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Detect Changed Modules
-      id: changes
-      run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-        else
-          BASE_SHA="${{ github.event.before }}"
-          HEAD_SHA="${{ github.sha }}"
-        fi
-        
-        # Find changed files
-        CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
-        
-        # For now, validate all modules to ensure the workflow works
-        CHANGED_MODULES="vpc ec2 ecs lambda s3"
-        
-        # Convert to JSON array
-        echo "changed-modules=[\"vpc\", \"ec2\", \"ecs\", \"lambda\", \"s3\"]" >> $GITHUB_OUTPUT
-        
-        echo "Changed modules detected: $CHANGED_MODULES"
-
   validate-vpc-examples:
     runs-on: ubuntu-latest
-    needs: [validate, detect-changes]
+    needs: validate
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 'latest'
         
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-      
     - name: Validate VPC Basic Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 'vpc') }}
       working-directory: modules/vpc/examples/basic
       run: |
         terraform init -upgrade
         terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for VPC - Basic" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         
     - name: Validate VPC Advanced Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 'vpc') }}
       working-directory: modules/vpc/examples/advanced
       run: |
         terraform init -upgrade
         terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for VPC - Advanced" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        
-    - name: Validate VPC Complete Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 'vpc') }}
-      working-directory: modules/vpc/examples/complete
-      run: |
-        terraform init -upgrade
-        terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for VPC - Complete" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  validate-ec2-examples:
-    runs-on: ubuntu-latest
-    needs: [validate, detect-changes]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 'latest'
-        
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-        
-    - name: Validate EC2 Basic Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 'ec2') }}
-      working-directory: modules/ec2/examples/basic
-      run: |
-        terraform init -upgrade
-        terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for EC2 - Basic" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-  validate-ecs-examples:
-    runs-on: ubuntu-latest
-    needs: [validate, detect-changes]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 'latest'
-        
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-        
-    - name: Validate ECS Basic Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 'ecs') }}
-      working-directory: modules/ecs/examples/basic
-      run: |
-        terraform init -upgrade
-        terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for ECS - Basic" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-  validate-lambda-examples:
-    runs-on: ubuntu-latest
-    needs: [validate, detect-changes]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 'latest'
-        
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-        
-    - name: Validate Lambda Basic Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 'lambda') }}
-      working-directory: modules/lambda/examples/basic
-      run: |
-        terraform init -upgrade
-        terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for Lambda - Basic" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-  validate-s3-examples:
-    runs-on: ubuntu-latest
-    needs: [validate, detect-changes]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 'latest'
-        
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-        
-    - name: Validate S3 Basic Example
-      if: ${{ contains(fromJson(needs.detect-changes.outputs.changed-modules), 's3') }}
-      working-directory: modules/s3/examples/basic
-      run: |
-        terraform init -upgrade
-        terraform validate -no-color
-        terraform plan -no-color -out=tfplan
-        echo "## 🧾 Terraform Plan Summary for S3 - Basic" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+  
