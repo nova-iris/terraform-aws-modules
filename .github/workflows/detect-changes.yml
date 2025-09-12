@@ -61,6 +61,7 @@ jobs:
         
         # Debug: show what files were detected as changed
         echo "All changed files: $CHANGED_FILES"
+        echo "UNIQUE_MODULES before fallback: '$UNIQUE_MODULES'"
         
         # If no modules changed but this is a workflow change, validate all modules
         if [[ -z "$UNIQUE_MODULES" ]]; then
@@ -72,6 +73,8 @@ jobs:
             UNIQUE_MODULES="vpc ec2 ecs lambda s3"
           fi
         fi
+        
+        echo "UNIQUE_MODULES after fallback: '$UNIQUE_MODULES'"
         
         echo "Changed modules: $UNIQUE_MODULES"
         
