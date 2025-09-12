@@ -59,16 +59,18 @@ jobs:
         # Remove duplicates and sort
         UNIQUE_MODULES=$(echo "${CHANGED_MODULES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
         
-        # If no modules changed but this is a workflow change, validate all modules
-        if [[ -z "$UNIQUE_MODULES" ]] && [[ "$CHANGED_FILES" =~ \.github/workflows/ ]]; then
-          echo "Workflow file changed, validating all modules"
-          UNIQUE_MODULES="vpc ec2 ecs lambda s3"
-        fi
+        # Debug: show what files were detected as changed
+        echo "All changed files: $CHANGED_FILES"
         
-        # If still no modules (first commit or repo-wide change), validate all
+        # If no modules changed but this is a workflow change, validate all modules
         if [[ -z "$UNIQUE_MODULES" ]]; then
-          echo "No specific modules detected, validating all modules"
-          UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          if echo "$CHANGED_FILES" | grep -q "\.github/workflows/"; then
+            echo "Workflow file changed, validating all modules"
+            UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          else
+            echo "No specific modules detected, validating all modules"
+            UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          fi
         fi
         
         echo "Changed modules: $UNIQUE_MODULES"
