@@ -85,9 +85,9 @@ jobs:
         # Extract changed modules
         CHANGED_MODULES=""
         for file in $CHANGED_FILES; do
-          if [[ $file =~ ^modules/([^/]+)/ ]]; then
-            MODULE="${BASH_REMATCH[1]}"
-            if [[ "$CHANGED_MODULES" != *"$MODULE"* ]]; then
+          if [[ $file == modules/* ]]; then
+            MODULE=$(echo $file | cut -d'/' -f2)
+            if [[ ! " $CHANGED_MODULES " =~ " $MODULE " ]]; then
               CHANGED_MODULES="$CHANGED_MODULES $MODULE"
             fi
           fi
@@ -99,7 +99,8 @@ jobs:
         fi
         
         # Convert to JSON array
-        echo "changed-modules=[$(echo $CHANGED_MODULES | sed 's/^/"/; s/$/"/; s/ /", "/g')]" >> $GITHUB_OUTPUT
+        JSON_ARRAY="[\"$(echo $CHANGED_MODULES | sed 's/ /", "/g')\"]"
+        echo "changed-modules=$JSON_ARRAY" >> $GITHUB_OUTPUT
         
         echo "Changed modules detected: $CHANGED_MODULES"
 
