@@ -65,11 +65,14 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const fs = require('fs');
-          const path = '${{ inputs.path }}/tfplan';
+          const { execSync } = require('child_process');
           
-          if (fs.existsSync(path)) {
-            const planOutput = execSync('terraform show -no-color tfplan', { cwd: '${{ inputs.path }}' }).toString();
+          try {
+            const planOutput = execSync('terraform show -no-color tfplan', { 
+              cwd: '${{ inputs.path }}',
+              encoding: 'utf8',
+              maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+            });
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -89,6 +92,8 @@ jobs:
               \`\`\`
               </details>`
             });
+          } catch (error) {
+            console.log('Error reading plan file:', error.message);
           }
           
     - name: Summary Check

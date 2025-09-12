@@ -99,8 +99,7 @@ jobs:
         fi
         
         # Convert to JSON array
-        MODULES_JSON=$(echo $CHANGED_MODULES | tr ' ' '\n' | jq -R . | jq -s .)
-        echo "changed-modules=$MODULES_JSON" >> $GITHUB_OUTPUT
+        echo "changed-modules=[$(echo $CHANGED_MODULES | sed 's/^/"/; s/$/"/; s/ /", "/g')]" >> $GITHUB_OUTPUT
         
         echo "Changed modules detected: $CHANGED_MODULES"
 
