@@ -1,92 +1,82 @@
-name: Validate
+name: Validate All Modules
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'modules/vpc/**'
-      - '.github/workflows/validate.yml'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'modules/vpc/**'
-      - '.github/workflows/validate.yml'
   workflow_dispatch:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
 
 jobs:
-  validate:
+  validate-all:
+    name: Validate All Modules
     runs-on: ubuntu-latest
     
     strategy:
       matrix:
+        module: ['vpc', 'ec2', 'ecs', 'lambda', 's3']
         terraform-version: ['1.0', '1.5', 'latest']
+      fail-fast: false
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ${{ matrix.terraform-version }}
-        
-    - name: Terraform Format
+
+    - name: Validate Module Format
       id: fmt
+      working-directory: modules/${{ matrix.module }}
       run: terraform fmt -check
       continue-on-error: true
-      
-    - name: Terraform Init
-      run: terraform init -upgrade
+
+    - name: Validate Module Syntax
+      id: validate-module
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        terraform init -upgrade
+        terraform validate -no-color
       continue-on-error: true
-      
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
-      
-    - name: Comment PR
-      if: failure() && github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: '❌ Terraform validation failed. Please check your code formatting and syntax.'
-          })
-          
-    - name: Upload Terraform validation results
+
+    - name: Validate and Plan All Examples
+      id: validate-examples
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        echo "Validating all examples for ${{ matrix.module }}..."
+        
+        for example_dir in examples/*/; do
+          if [[ -f "${example_dir}main.tf" ]]; then
+            example_name=$(basename "$example_dir")
+            echo "Validating example: $example_name"
+            
+            cd "$example_dir"
+            terraform init -upgrade
+            terraform validate -no-color
+            terraform plan -detailed-exitcode -no-color
+            cd ../..
+          fi
+        done
+
+    - name: Upload Results
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: terraform-validation-${{ matrix.terraform-version }}
+        name: ${{ matrix.module }}-validation-${{ matrix.terraform-version }}
         path: |
-          .terraform/
-          *.tfstate*
+          modules/${{ matrix.module }}/.terraform/
+          modules/${{ matrix.module }}/examples/**/.terraform/
+        retention-days: 1
 
-  validate-vpc-examples:
-    runs-on: ubuntu-latest
-    needs: validate
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 'latest'
-        
-    - name: Validate VPC Basic Example
-      working-directory: modules/vpc/examples/basic
+    - name: Summary
+      if: always()
       run: |
-        terraform init -upgrade
-        terraform validate -no-color
-        
-    - name: Validate VPC Advanced Example
-      working-directory: modules/vpc/examples/advanced
-      run: |
-        terraform init -upgrade
-        terraform validate -no-color
-
+        echo "## ${{ matrix.module }} Module Validation" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Module**: ${{ matrix.module }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Terraform Version**: ${{ matrix.terraform-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Format Check**: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Module Validation**: ${{ steps.validate-module.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Examples Validation**: ${{ steps.validate-examples.outcome }}" >> $GITHUB_STEP_SUMMARY
   

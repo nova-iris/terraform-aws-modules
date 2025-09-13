@@ -1,0 +1,149 @@
+name: Module Change Detection
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  detect-changes:
+    name: Detect Module Changes
+    runs-on: ubuntu-latest
+    outputs:
+      changed-modules: ${{ steps.detect.outputs.modules }}
+      matrix-json: ${{ steps.detect.outputs.matrix-json }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history for proper diff
+      
+    - name: Detect Changed Modules
+      id: detect
+      run: |
+        # Detect changed modules between current and target branch
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          BASE_REF="${{ github.event.pull_request.base.sha }}"
+          HEAD_REF="${{ github.sha }}"
+        else
+          # For push events, compare with previous commit
+          BASE_REF="${{ github.event.before }}"
+          HEAD_REF="${{ github.sha }}"
+        fi
+        
+        # If BASE_REF is empty (first commit or tag), use HEAD_REF~1
+        if [[ -z "$BASE_REF" ]]; then
+          BASE_REF="${HEAD_REF}~1"
+        fi
+        
+        echo "Comparing $BASE_REF...$HEAD_REF"
+        
+        # Get changed files
+        CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" || true)
+        
+        # Extract module directories from changed files
+        CHANGED_MODULES=()
+        
+        for file in $CHANGED_FILES; do
+          if [[ "$file" =~ ^modules/([^/]+)/ ]]; then
+            module="${BASH_REMATCH[1]}"
+            # Only include modules that exist and have examples
+            if [[ -d "modules/$module" ]] && [[ -n "$(ls modules/$module/examples/ 2>/dev/null)" ]]; then
+              CHANGED_MODULES+=("$module")
+            fi
+          fi
+        done
+        
+        # Remove duplicates and sort
+        UNIQUE_MODULES=$(echo "${CHANGED_MODULES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        
+        # Debug: show what files were detected as changed
+        echo "All changed files: $CHANGED_FILES"
+        echo "UNIQUE_MODULES before fallback: '$UNIQUE_MODULES'"
+        
+        # If no modules changed but this is a workflow change, validate all modules
+        if [[ -z "$UNIQUE_MODULES" ]] || [[ "$UNIQUE_MODULES" == " " ]]; then
+          if echo "$CHANGED_FILES" | grep -q "\.github/workflows/"; then
+            echo "Workflow file changed, validating all modules"
+            UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          else
+            echo "No specific modules detected, validating all modules"
+            UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          fi
+        fi
+        
+        echo "UNIQUE_MODULES after fallback: '$UNIQUE_MODULES'"
+        
+        echo "Changed modules: $UNIQUE_MODULES"
+        
+        # Create JSON matrix for workflow dispatch
+        MATRIX_JSON='['
+        first=true
+        for module in $UNIQUE_MODULES; do
+          if [[ "$first" == "true" ]]; then
+            first=false
+          else
+            MATRIX_JSON+=','
+          fi
+          MATRIX_JSON+="{\"module\":\"$module\"}"
+        done
+        MATRIX_JSON+=']'
+        
+        # Set outputs
+        echo "modules=$UNIQUE_MODULES" >> $GITHUB_OUTPUT
+        echo "matrix-json=$MATRIX_JSON" >> $GITHUB_OUTPUT
+        echo "Detected modules: $UNIQUE_MODULES"
+        echo "Matrix JSON: $MATRIX_JSON"
+
+  trigger-validations:
+    name: Trigger Module Validations
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-modules != ''
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.detect-changes.outputs.matrix-json) }}
+      fail-fast: false  # Continue even if some validations fail
+    
+    steps:
+    - name: Trigger ${{ matrix.module }} Validation
+      uses: actions/github-script@v7
+      continue-on-error: true
+      with:
+        script: |
+          const moduleName = '${{ matrix.module }}';
+          
+          try {
+            // Check if the workflow exists first
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const validateWorkflow = workflows.workflows.find(w => w.path === '.github/workflows/validate-module.yml');
+            
+            if (validateWorkflow) {
+              // Trigger the module-specific validation workflow
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'validate-module.yml',
+                ref: context.ref,
+                inputs: {
+                  module: moduleName,
+                  ref: context.sha
+                }
+              });
+              
+              console.log(`✅ Triggered validation for module: ${moduleName}`);
+            } else {
+              console.log(`⚠️ validate-module.yml workflow not found, skipping dispatch for module: ${moduleName}`);
+              console.log(`This is expected in PRs before the workflow is merged`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Could not trigger validation for module ${moduleName}: ${error.message}`);
+            console.log(`This is expected when validate-module.yml doesn't exist in the target branch`);
+            // Don't fail the job - this is expected behavior in PRs
+          }
