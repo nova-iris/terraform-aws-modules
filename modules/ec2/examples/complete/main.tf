@@ -175,29 +175,7 @@ module "ec2" {
     }
   ]
 
-  ebs_block_device = [
-    {
-      delete_on_termination = true
-      device_name           = "/dev/sdf"
-      encrypted             = true
-      iops                  = 10000
-      kms_key_id            = null
-      snapshot_id           = null
-      volume_size           = 200
-      volume_type           = "gp3"
-    },
-    {
-      delete_on_termination = true
-      device_name           = "/dev/sdg"
-      encrypted             = true
-      iops                  = 2000
-      kms_key_id            = null
-      snapshot_id           = null
-      volume_size           = 100
-      volume_type           = "io2"
-    }
-  ]
-
+  
   tags = {
     Environment = "production"
     Project     = "complete-ec2-example"
