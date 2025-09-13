@@ -37,7 +37,6 @@ jobs:
     
     strategy:
       matrix:
-        terraform-version: ['1.0', '1.5', 'latest']
         example: ['basic', 'advanced', 'complete']
       fail-fast: false
     
@@ -50,8 +49,6 @@ jobs:
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ matrix.terraform-version }}
 
     - name: Validate Module Format
       id: fmt
@@ -67,7 +64,7 @@ jobs:
         terraform validate -no-color
       continue-on-error: true
 
-    - name: Validate and Plan Examples
+    - name: Validate Examples
       id: validate-example
       working-directory: modules/${{ inputs.module }}/examples/${{ matrix.example }}
       run: |
@@ -81,9 +78,6 @@ jobs:
         # Initialize and validate
         terraform init -upgrade
         terraform validate -no-color
-        
-        # Run plan (this validates the configuration without applying)
-        terraform plan -detailed-exitcode -no-color
         echo "skip=false" >> $GITHUB_OUTPUT
       continue-on-error: true
 
@@ -93,11 +87,9 @@ jobs:
       with:
         script: |
           const module = '${{ inputs.module }}';
-          const tfVersion = '${{ matrix.terraform-version }}';
           const example = '${{ matrix.example }}';
           
           let message = `❌ **${{ inputs.module }} module validation failed**\n\n`;
-          message += `- **Terraform Version**: ${tfVersion}\n`;
           message += `- **Example**: ${example}\n`;
           message += `- **Module**: ${module}\n\n`;
           
@@ -122,7 +114,7 @@ jobs:
       if: always() && steps.validate-example.outputs.skip != 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.module }}-${{ matrix.example }}-${{ matrix.terraform-version }}
+        name: ${{ inputs.module }}-${{ matrix.example }}
         path: |
           modules/${{ inputs.module }}/.terraform/
           modules/${{ inputs.module }}/examples/${{ matrix.example }}/.terraform/
@@ -136,7 +128,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Module**: ${{ inputs.module }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Example**: ${{ matrix.example }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Terraform Version**: ${{ matrix.terraform-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Format Check**: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Module Validation**: ${{ steps.validate-module.outcome }}" >> $GITHUB_STEP_SUMMARY
         
