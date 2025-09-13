@@ -108,42 +108,22 @@ jobs:
       fail-fast: false  # Continue even if some validations fail
     
     steps:
-    - name: Trigger ${{ matrix.module }} Validation
-      uses: actions/github-script@v7
-      continue-on-error: true
+    - name: Checkout code
+      uses: actions/checkout@v4
       with:
-        script: |
-          const moduleName = '${{ matrix.module }}';
-          
-          try {
-            // Check if the workflow exists first
-            const { data: workflows } = await github.rest.actions.listRepoWorkflows({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            
-            const validateWorkflow = workflows.workflows.find(w => w.path === '.github/workflows/validate-module.yml');
-            
-            if (validateWorkflow) {
-              // Trigger the module-specific validation workflow
-              await github.rest.actions.createWorkflowDispatch({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: 'validate-module.yml',
-                ref: context.ref,
-                inputs: {
-                  module: moduleName,
-                  ref: context.sha
-                }
-              });
-              
-              console.log(`✅ Triggered validation for module: ${moduleName}`);
-            } else {
-              console.log(`⚠️ validate-module.yml workflow not found, skipping dispatch for module: ${moduleName}`);
-              console.log(`This is expected in PRs before the workflow is merged`);
-            }
-          } catch (error) {
-            console.log(`⚠️ Could not trigger validation for module ${moduleName}: ${error.message}`);
-            console.log(`This is expected when validate-module.yml doesn't exist in the target branch`);
-            // Don't fail the job - this is expected behavior in PRs
-          }
+        fetch-depth: 0
+        
+    - name: Trigger ${{ matrix.module }} Validation
+      run: |
+        # Check if the workflow exists first
+        if gh workflow list | grep -q "validate-module.yml"; then
+          # Trigger the module-specific validation workflow
+          gh workflow run validate-module.yml -f module=${{ matrix.module }} -f ref=${{ github.sha }} || echo "⚠️ Could not trigger validation for module ${{ matrix.module }} (expected in PRs)"
+          echo "✅ Triggered validation for module: ${{ matrix.module }}"
+        else
+          echo "⚠️ validate-module.yml workflow not found, skipping dispatch for module: ${{ matrix.module }}"
+          echo "This is expected in PRs before the workflow is merged"
+        fi
+      continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
