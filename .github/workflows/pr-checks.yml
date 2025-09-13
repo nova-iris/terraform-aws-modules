@@ -99,8 +99,6 @@ jobs:
     name: Validate ${{ matrix.module }}
     runs-on: ubuntu-latest
     needs: detect-changes
-    # Only run validation if modules were detected as changed
-    if: needs.detect-changes.outputs.changed-modules != '[]'
     strategy:
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
@@ -277,12 +275,12 @@ jobs:
     steps:
     - name: Determine overall status
       run: |
-        if [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "[]" ]]; then
+        if [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "[]" ]] || [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "" ]]; then
           echo "✅ No modules to validate"
           exit 0
         fi
         
-        if [[ "${{ needs.validate-changed-modules.result }}" == "success" ]] || [[ "${{ needs.validate-changed-modules.result }}" == "skipped" ]]; then
+        if [[ "${{ needs.validate-changed-modules.result }}" == "success" ]]; then
           echo "✅ All validations passed"
         else
           echo "❌ Some validations failed"
