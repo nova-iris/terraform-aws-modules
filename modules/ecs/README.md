@@ -25,16 +25,13 @@ No resources.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_cluster_configuration"></a> [cluster\_configuration](#input\_cluster\_configuration) | Cluster configuration | `list(map(string))` | `[]` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the ECS cluster | `string` | `"ecs-cluster"` | no |
-| <a name="input_cluster_settings"></a> [cluster\_settings](#input\_cluster\_settings) | Cluster settings | `list(map(string))` | `[]` | no |
 | <a name="input_container_definitions"></a> [container\_definitions](#input\_container\_definitions) | Container definitions for the task | `list(any)` | `[]` | no |
 | <a name="input_create_service"></a> [create\_service](#input\_create\_service) | Whether to create ECS service | `bool` | `true` | no |
 | <a name="input_deployment_maximum_percent"></a> [deployment\_maximum\_percent](#input\_deployment\_maximum\_percent) | Upper limit on the number of tasks running during a deployment | `number` | `200` | no |
 | <a name="input_deployment_minimum_healthy_percent"></a> [deployment\_minimum\_healthy\_percent](#input\_deployment\_minimum\_healthy\_percent) | Lower limit on the number of tasks running during a deployment | `number` | `100` | no |
 | <a name="input_desired_count"></a> [desired\_count](#input\_desired\_count) | Number of instances of the task to place and keep running | `number` | `1` | no |
 | <a name="input_enable_execute_command"></a> [enable\_execute\_command](#input\_enable\_execute\_command) | Whether to enable execute command functionality | `bool` | `false` | no |
-| <a name="input_fargate_capacity_providers"></a> [fargate\_capacity\_providers](#input\_fargate\_capacity\_providers) | Fargate capacity providers configuration | `map(any)` | `{}` | no |
 | <a name="input_launch_type"></a> [launch\_type](#input\_launch\_type) | Launch type for the service | `string` | `"FARGATE"` | no |
 | <a name="input_load_balancer"></a> [load\_balancer](#input\_load\_balancer) | Load balancer configuration | `map(any)` | `{}` | no |
 | <a name="input_network_configuration"></a> [network\_configuration](#input\_network\_configuration) | Network configuration for the service | `map(any)` | `{}` | no |
