@@ -28,15 +28,6 @@ output "availability_zone" {
   value       = module.ec2_instance.availability_zone
 }
 
-output "subnet_id" {
-  description = "The subnet ID of the EC2 instance"
-  value       = module.ec2_instance.subnet_id
-}
-
-output "vpc_security_group_ids" {
-  description = "The security group IDs associated with the EC2 instance"
-  value       = module.ec2_instance.vpc_security_group_ids
-}
 
 output "iam_instance_profile_arn" {
   description = "The ARN of the IAM instance profile"

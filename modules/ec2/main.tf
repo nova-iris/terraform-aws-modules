@@ -1,10 +1,10 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.6"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 4.0"
+      version = ">= 6.0"
     }
   }
 }
@@ -29,7 +29,6 @@ module "ec2_instance" {
   associate_public_ip_address = var.associate_public_ip_address
 
   root_block_device = var.root_block_device
-  ebs_block_device  = var.ebs_block_device
 
   tags = merge(
     {

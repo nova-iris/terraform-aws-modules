@@ -68,29 +68,14 @@ module "ec2" {
               echo "<h1>Hello from Advanced EC2 Instance</h1>" > /var/www/html/index.html
               EOF
 
-  root_block_device = [
-    {
-      delete_on_termination = true
-      encrypted             = true
-      iops                  = 3000
-      kms_key_id            = null
-      volume_size           = 30
-      volume_type           = "gp3"
-    }
-  ]
-
-  ebs_block_device = [
-    {
-      delete_on_termination = true
-      device_name           = "/dev/sdf"
-      encrypted             = true
-      iops                  = 5000
-      kms_key_id            = null
-      snapshot_id           = null
-      volume_size           = 100
-      volume_type           = "gp3"
-    }
-  ]
+  root_block_device = {
+    delete_on_termination = true
+    encrypted             = true
+    iops                  = 3000
+    kms_key_id            = null
+    volume_size           = 30
+    volume_type           = "gp3"
+  }
 
   tags = {
     Environment = "staging"

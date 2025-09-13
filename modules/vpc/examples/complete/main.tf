@@ -25,13 +25,6 @@ module "vpc" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  customer_gateways = {
-    "my-gw" = {
-      bgp_asn    = 65000
-      ip_address = "1.2.3.4"
-    }
-  }
-
   tags = {
     Environment = "production"
     Project     = "complete-vpc-example"

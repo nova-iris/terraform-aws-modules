@@ -99,11 +99,9 @@ jobs:
     name: Validate ${{ matrix.module }}
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.changed-modules != '[]'
     strategy:
       matrix:
-        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
-        terraform-version: ['1.0', '1.5', 'latest']
+        module: ${{ fromJson(needs.detect-changes.outputs.changed-modules) }}
       fail-fast: false
     
     steps:
@@ -114,8 +112,6 @@ jobs:
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ matrix.terraform-version }}
 
     - name: Validate Module Format
       id: fmt
@@ -175,21 +171,62 @@ jobs:
     - name: Validate Examples
       id: validate-examples
       working-directory: modules/${{ matrix.module }}
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: us-east-1
       run: |
         echo "Validating all examples for ${{ matrix.module }}..."
+        
+        FAILED_EXAMPLES=""
         
         for example_dir in examples/*/; do
           if [[ -f "${example_dir}main.tf" ]]; then
             example_name=$(basename "$example_dir")
+            echo ""
+            echo "=========================================="
             echo "Validating example: $example_name"
+            echo "=========================================="
             
             cd "$example_dir"
-            terraform init -upgrade
-            terraform validate -no-color
-            terraform plan -detailed-exitcode -no-color -input=false
+            
+            # Initialize and validate
+            if ! terraform init -upgrade; then
+              echo "❌ Failed to initialize $example_name"
+              FAILED_EXAMPLES="$FAILED_EXAMPLES $example_name(init)"
+              cd ../..
+              continue
+            fi
+            
+            if ! terraform validate -no-color; then
+              echo "❌ Failed to validate $example_name"
+              FAILED_EXAMPLES="$FAILED_EXAMPLES $example_name(validate)"
+              cd ../..
+              continue
+            fi
+            
+            # Run terraform plan to test configuration with real AWS credentials
+            echo "Running terraform plan for $example_name..."
+            if ! terraform plan -no-color; then
+              echo "❌ Failed to plan $example_name"
+              FAILED_EXAMPLES="$FAILED_EXAMPLES $example_name(plan)"
+              cd ../..
+              continue
+            fi
+            
+            echo "✅ Successfully validated and planned $example_name"
             cd ../..
           fi
         done
+        
+        echo ""
+        echo "=========================================="
+        if [[ -n "$FAILED_EXAMPLES" ]]; then
+          echo "❌ Failed examples:$FAILED_EXAMPLES"
+          exit 1
+        else
+          echo "✅ All examples validated successfully"
+        fi
 
     - name: Check Documentation
       id: docs
@@ -215,10 +252,8 @@ jobs:
       with:
         script: |
           const module = '${{ matrix.module }}';
-          const tfVersion = '${{ matrix.terraform-version }}';
           
           let message = `❌ **${module} module validation failed**\n\n`;
-          message += `- **Terraform Version**: ${tfVersion}\n`;
           message += `- **Module**: ${module}\n\n`;
           
           if ('${{ steps.fmt.outcome }}' === 'failure') {
@@ -237,7 +272,7 @@ jobs:
             message += `- **Checkov**: Failed\n`;
           }
           if ('${{ steps.validate-examples.outcome }}' === 'failure') {
-            message += `- **Examples Validation**: Failed\n`;
+            message += `- **Examples Validation**: Failed (terraform init/validate/plan)\n`;
           }
           if ('${{ steps.docs.outcome }}' === 'failure') {
             message += `- **Documentation Check**: Failed\n`;
@@ -258,13 +293,12 @@ jobs:
         echo "## ${{ matrix.module }} Module Validation Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Module**: ${{ matrix.module }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Terraform Version**: ${{ matrix.terraform-version }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Format Check**: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Module Validation**: ${{ steps.validate-module.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "- **TFLint**: ${{ steps.tflint.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "- **TFSec**: ${{ steps.tfsec.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Checkov**: ${{ steps.checkov.outcome }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Examples Validation**: ${{ steps.validate-examples.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Examples Validation**: ${{ steps.validate-examples.outcome }} (init/validate/plan)" >> $GITHUB_STEP_SUMMARY
         echo "- **Documentation**: ${{ steps.docs.outcome }}" >> $GITHUB_STEP_SUMMARY
 
   overall-status:
@@ -276,7 +310,7 @@ jobs:
     steps:
     - name: Determine overall status
       run: |
-        if [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "[]" ]]; then
+        if [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "[]" ]] || [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "" ]]; then
           echo "✅ No modules to validate"
           exit 0
         fi

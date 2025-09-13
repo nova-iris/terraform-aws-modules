@@ -65,34 +65,20 @@ variable "associate_public_ip_address" {
 
 variable "root_block_device" {
   description = "Root block device configuration"
-  type = list(object({
-    delete_on_termination = bool
-    encrypted             = bool
-    iops                  = number
-    kms_key_id            = string
-    volume_size           = number
-    volume_type           = string
-  }))
-  default = []
+  type = object({
+    delete_on_termination = optional(bool, true)
+    encrypted             = optional(bool, false)
+    iops                  = optional(number)
+    kms_key_id            = optional(string)
+    volume_size           = optional(number, 30)
+    volume_type           = optional(string, "gp3")
+  })
+  default = {}
 }
 
-variable "ebs_block_device" {
-  description = "EBS block device configuration"
-  type = list(object({
-    delete_on_termination = bool
-    device_name           = string
-    encrypted             = bool
-    iops                  = number
-    kms_key_id            = string
-    snapshot_id           = string
-    volume_size           = number
-    volume_type           = string
-  }))
-  default = []
-}
 
 variable "tags" {
   description = "A map of tags to assign to the resources"
   type        = map(string)
   default     = {}
-}
+} # Test comment in EC2 module

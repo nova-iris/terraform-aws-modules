@@ -40,12 +40,6 @@ module "vpc" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  customer_gateways = {
-    "corp-gw" = {
-      bgp_asn    = 65000
-      ip_address = "203.0.113.1"
-    }
-  }
 
   tags = {
     Environment = "production"
@@ -164,39 +158,15 @@ module "ec2" {
               CWEOF
               EOF
 
-  root_block_device = [
-    {
-      delete_on_termination = true
-      encrypted             = true
-      iops                  = 5000
-      kms_key_id            = null
-      volume_size           = 50
-      volume_type           = "gp3"
-    }
-  ]
+  root_block_device = {
+    delete_on_termination = true
+    encrypted             = true
+    iops                  = 5000
+    kms_key_id            = null
+    volume_size           = 50
+    volume_type           = "gp3"
+  }
 
-  ebs_block_device = [
-    {
-      delete_on_termination = true
-      device_name           = "/dev/sdf"
-      encrypted             = true
-      iops                  = 10000
-      kms_key_id            = null
-      snapshot_id           = null
-      volume_size           = 200
-      volume_type           = "gp3"
-    },
-    {
-      delete_on_termination = true
-      device_name           = "/dev/sdg"
-      encrypted             = true
-      iops                  = 2000
-      kms_key_id            = null
-      snapshot_id           = null
-      volume_size           = 100
-      volume_type           = "io2"
-    }
-  ]
 
   tags = {
     Environment = "production"
@@ -239,13 +209,6 @@ resource "aws_security_group" "ec2_sg" {
     description     = "HTTPS access from ALB"
   }
 
-  ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.rds_sg.id]
-    description     = "MySQL access from RDS"
-  }
 
   egress {
     from_port   = 0
