@@ -29,7 +29,6 @@ module "ec2_instance" {
   associate_public_ip_address = var.associate_public_ip_address
 
   root_block_device = var.root_block_device
-  ebs_block_device  = var.ebs_block_device
 
   tags = merge(
     {

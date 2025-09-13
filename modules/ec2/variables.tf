@@ -76,20 +76,6 @@ variable "root_block_device" {
   default = []
 }
 
-variable "ebs_block_device" {
-  description = "EBS block device configuration"
-  type = list(object({
-    delete_on_termination = bool
-    device_name           = string
-    encrypted             = bool
-    iops                  = number
-    kms_key_id            = string
-    snapshot_id           = string
-    volume_size           = number
-    volume_type           = string
-  }))
-  default = []
-}
 
 variable "tags" {
   description = "A map of tags to assign to the resources"
