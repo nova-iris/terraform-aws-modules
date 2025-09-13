@@ -60,4 +60,4 @@ No resources.
 | <a name="output_vpc_cidr_block"></a> [vpc\_cidr\_block](#output\_vpc\_cidr\_block) | The CIDR block of the VPC |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | The ID of the VPC |
 | <a name="output_vpc_main_route_table_id"></a> [vpc\_main\_route\_table\_id](#output\_vpc\_main\_route\_table\_id) | ID of the main route table associated with the VPC |
-<!-- END_TF_DOCS -->
+<!-- END_TF_DOCS --># Test CI/CD pipeline change
