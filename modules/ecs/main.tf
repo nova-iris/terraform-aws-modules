@@ -32,18 +32,12 @@ module "ecs_service" {
 
   container_definitions = var.container_definitions
 
-  network_configuration = var.network_configuration
-
-  load_balancer = var.load_balancer
-
-  deployment_maximum_percent         = var.deployment_maximum_percent
-  deployment_minimum_healthy_percent = var.deployment_minimum_healthy_percent
-
   desired_count = var.desired_count
 
   launch_type = var.launch_type
 
-  enable_execute_command = var.enable_execute_command
+  subnet_ids         = var.subnet_ids
+  security_group_ids = var.security_group_ids
 
   tags = var.tags
 

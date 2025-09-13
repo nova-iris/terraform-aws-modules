@@ -31,33 +31,10 @@ variable "task_memory" {
 
 variable "container_definitions" {
   description = "Container definitions for the task"
-  type        = list(any)
-  default     = []
-}
-
-variable "network_configuration" {
-  description = "Network configuration for the service"
   type        = map(any)
   default     = {}
 }
 
-variable "load_balancer" {
-  description = "Load balancer configuration"
-  type        = map(any)
-  default     = {}
-}
-
-variable "deployment_maximum_percent" {
-  description = "Upper limit on the number of tasks running during a deployment"
-  type        = number
-  default     = 200
-}
-
-variable "deployment_minimum_healthy_percent" {
-  description = "Lower limit on the number of tasks running during a deployment"
-  type        = number
-  default     = 100
-}
 
 variable "desired_count" {
   description = "Number of instances of the task to place and keep running"
@@ -71,11 +48,18 @@ variable "launch_type" {
   default     = "FARGATE"
 }
 
-variable "enable_execute_command" {
-  description = "Whether to enable execute command functionality"
-  type        = bool
-  default     = false
+variable "subnet_ids" {
+  description = "Subnet IDs for the service (required for FARGATE)"
+  type        = list(string)
+  default     = []
 }
+
+variable "security_group_ids" {
+  description = "Security group IDs for the service (required for FARGATE)"
+  type        = list(string)
+  default     = []
+}
+
 
 variable "tags" {
   description = "Tags to apply to resources"
