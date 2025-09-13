@@ -1,4 +1,4 @@
-name: Validate All Modules
+name: Validate All Modules v2
 
 on:
   workflow_dispatch:
