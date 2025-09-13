@@ -95,4 +95,4 @@ variable "tags" {
   description = "A map of tags to assign to the resources"
   type        = map(string)
   default     = {}
-}# Test comment in EC2 module
+} # Test comment in EC2 module
