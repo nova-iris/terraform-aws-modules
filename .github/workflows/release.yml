@@ -71,8 +71,8 @@ jobs:
         
         echo "bump=$BUMP" >> $GITHUB_OUTPUT
         # Convert commits to single line for GitHub Actions output
-COMMITS_SINGLE_LINE=$(echo "$COMMITS" | tr '\n' ';' | sed 's/;*$//')
-echo "commits=$COMMITS_SINGLE_LINE" >> $GITHUB_OUTPUT
+        COMMITS_SINGLE_LINE=$(echo "$COMMITS" | tr '\n' ';' | sed 's/;*$//')
+        echo "commits=$COMMITS_SINGLE_LINE" >> $GITHUB_OUTPUT
         
     - name: Get current version
       id: current-version
@@ -138,7 +138,7 @@ echo "commits=$COMMITS_SINGLE_LINE" >> $GITHUB_OUTPUT
         TAG=${{ steps.tag.outputs.tag }}
         
         # Convert single-line commits back to multi-line for changelog
-COMMITS_MULTI_LINE=$(echo "${{ steps.version.outputs.commits }}" | tr ';' '\n')
+        COMMITS_MULTI_LINE=$(echo "${{ steps.version.outputs.commits }}" | tr ';' '\n')
         CHANGELOG="## $MODULE $NEW_VERSION ($(date +%Y-%m-%d))
         
         ### Changes
