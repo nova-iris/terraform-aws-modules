@@ -48,12 +48,12 @@ variable "restrict_public_buckets" {
 variable "lifecycle_rules" {
   description = "Lifecycle rules for the bucket"
   type = list(object({
-    id                        = string
-    enabled                   = bool
-    expiration                = optional(object({
+    id      = string
+    enabled = bool
+    expiration = optional(object({
       days = number
     }))
-    transition                = optional(object({
+    transition = optional(object({
       days          = number
       storage_class = string
     }))

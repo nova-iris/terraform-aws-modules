@@ -43,14 +43,14 @@ module "vpc" {
 module "ec2" {
   source = "../../../ec2"
 
-  name           = "basic-ec2-instance"
-  ami            = data.aws_ami.amazon_linux_2.id
-  instance_type  = "t3.micro"
-  key_name       = null
-  
-  subnet_id                      = module.vpc.public_subnets[0]
-  vpc_security_group_ids         = [aws_security_group.ec2_sg.id]
-  associate_public_ip_address    = true
+  name          = "basic-ec2-instance"
+  ami           = data.aws_ami.amazon_linux_2.id
+  instance_type = "t3.micro"
+  key_name      = null
+
+  subnet_id                   = module.vpc.public_subnets[0]
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  associate_public_ip_address = true
 
   tags = {
     Environment = "dev"

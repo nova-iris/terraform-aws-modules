@@ -29,7 +29,7 @@ module "ecs" {
   source = "../../../ecs"
 
   cluster_name = "basic-ecs-cluster"
-  service_name  = "basic-web-service"
+  service_name = "basic-web-service"
 
   task_cpu    = 256
   task_memory = 512
@@ -49,8 +49,8 @@ module "ecs" {
   ]
 
   network_configuration = {
-    subnets         = module.vpc.private_subnets
-    security_groups = [aws_security_group.ecs_sg.id]
+    subnets          = module.vpc.private_subnets
+    security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = false
   }
 

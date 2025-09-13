@@ -18,10 +18,10 @@ data "archive_file" "lambda_zip" {
 resource "aws_lambda_function" "this" {
   function_name    = var.function_name
   description      = var.description
-  role            = var.execution_role_arn
-  handler         = var.handler
-  runtime         = var.runtime
-  filename        = data.archive_file.lambda_zip.output_path
+  role             = var.execution_role_arn
+  handler          = var.handler
+  runtime          = var.runtime
+  filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {

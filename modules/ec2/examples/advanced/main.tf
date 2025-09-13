@@ -32,9 +32,9 @@ module "vpc" {
   public_subnets   = ["10.10.101.0/24", "10.10.102.0/24", "10.10.103.0/24"]
   database_subnets = ["10.10.201.0/24", "10.10.202.0/24", "10.10.203.0/24"]
 
-  enable_nat_gateway      = true
-  single_nat_gateway      = false
-  one_nat_gateway_per_az  = true
+  enable_nat_gateway     = true
+  single_nat_gateway     = false
+  one_nat_gateway_per_az = true
 
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -49,15 +49,15 @@ module "vpc" {
 module "ec2" {
   source = "../../../ec2"
 
-  name           = "advanced-ec2-instance"
-  ami            = data.aws_ami.amazon_linux_2.id
-  instance_type  = "t3.medium"
-  key_name       = "staging-key"
-  monitoring     = true
+  name          = "advanced-ec2-instance"
+  ami           = data.aws_ami.amazon_linux_2.id
+  instance_type = "t3.medium"
+  key_name      = "staging-key"
+  monitoring    = true
 
-  subnet_id                      = module.vpc.private_subnets[0]
-  vpc_security_group_ids         = [aws_security_group.ec2_sg.id]
-  associate_public_ip_address    = false
+  subnet_id                   = module.vpc.private_subnets[0]
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  associate_public_ip_address = false
 
   user_data = <<-EOF
               #!/bin/bash

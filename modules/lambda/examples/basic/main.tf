@@ -29,19 +29,19 @@ resource "local_file" "lambda_function" {
 module "lambda" {
   source = "../../../lambda"
 
-  function_name    = "basic-lambda-function"
-  description      = "Basic Lambda function for validation"
-  runtime          = "python3.11"
-  handler          = "lambda_function.lambda_handler"
-  source_file      = local_file.lambda_function.filename
-  
+  function_name = "basic-lambda-function"
+  description   = "Basic Lambda function for validation"
+  runtime       = "python3.11"
+  handler       = "lambda_function.lambda_handler"
+  source_file   = local_file.lambda_function.filename
+
   create_execution_role = true
-  
+
   environment_variables = {
     ENVIRONMENT = "dev"
     LOG_LEVEL   = "INFO"
   }
-  
+
   tags = {
     Environment = "dev"
     Project     = "basic-lambda-example"

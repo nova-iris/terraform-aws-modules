@@ -1,0 +1,289 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  detect-changes:
+    name: Detect Changed Modules
+    runs-on: ubuntu-latest
+    outputs:
+      changed-modules: ${{ steps.detect.outputs.modules }}
+      matrix-json: ${{ steps.detect.outputs.matrix-json }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+      
+    - name: Detect Changed Modules
+      id: detect
+      run: |
+        # Detect changed modules between current and target branch
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          BASE_REF="${{ github.event.pull_request.base.sha }}"
+          HEAD_REF="${{ github.sha }}"
+        else
+          # For push events, compare with previous commit
+          BASE_REF="${{ github.event.before }}"
+          HEAD_REF="${{ github.sha }}"
+        fi
+        
+        # If BASE_REF is empty (first commit or tag), use HEAD_REF~1
+        if [[ -z "$BASE_REF" ]]; then
+          BASE_REF="${HEAD_REF}~1"
+        fi
+        
+        echo "Comparing $BASE_REF...$HEAD_REF"
+        
+        # Get changed files
+        CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" || true)
+        
+        # Extract module directories from changed files
+        CHANGED_MODULES=()
+        
+        for file in $CHANGED_FILES; do
+          if [[ "$file" =~ ^modules/([^/]+)/ ]]; then
+            module="${BASH_REMATCH[1]}"
+            # Only include modules that exist and have examples
+            if [[ -d "modules/$module" ]] && [[ -n "$(ls modules/$module/examples/ 2>/dev/null)" ]]; then
+              CHANGED_MODULES+=("$module")
+            fi
+          fi
+        done
+        
+        # Remove duplicates and sort
+        UNIQUE_MODULES=$(echo "${CHANGED_MODULES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        
+        # Debug: show what files were detected as changed
+        echo "All changed files: $CHANGED_FILES"
+        echo "UNIQUE_MODULES before fallback: '$UNIQUE_MODULES'"
+        
+        # If no modules changed but this is a workflow change, validate all modules
+        if [[ -z "$UNIQUE_MODULES" ]] || [[ "$UNIQUE_MODULES" == " " ]]; then
+          if echo "$CHANGED_FILES" | grep -q "\.github/workflows/"; then
+            echo "Workflow file changed, validating all modules"
+            UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          else
+            echo "No specific modules detected, validating all modules"
+            UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+          fi
+        fi
+        
+        echo "UNIQUE_MODULES after fallback: '$UNIQUE_MODULES'"
+        
+        echo "Changed modules: $UNIQUE_MODULES"
+        
+        # Create JSON array for matrix
+        MODULES_JSON='['
+        first=true
+        for module in $UNIQUE_MODULES; do
+          if [[ "$first" == "true" ]]; then
+            first=false
+          else
+            MODULES_JSON+=','
+          fi
+          MODULES_JSON+="\"$module\""
+        done
+        MODULES_JSON+=']'
+        
+        # Set outputs
+        echo "modules=$MODULES_JSON" >> $GITHUB_OUTPUT
+        echo "matrix-json=$MODULES_JSON" >> $GITHUB_OUTPUT
+        echo "Detected modules: $UNIQUE_MODULES"
+
+  validate-changed-modules:
+    name: Validate ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-modules != '[]'
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
+        terraform-version: ['1.0', '1.5', 'latest']
+      fail-fast: false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ matrix.terraform-version }}
+
+    - name: Validate Module Format
+      id: fmt
+      working-directory: modules/${{ matrix.module }}
+      run: terraform fmt -check -recursive
+
+    - name: Validate Module Syntax
+      id: validate-module
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        terraform init -upgrade
+        terraform validate -no-color
+
+    - name: Install security tools
+      run: |
+        # Install tflint
+        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+        # Install tfsec
+        curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+        # Install checkov
+        pip install checkov
+
+    - name: Run tflint
+      id: tflint
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        if command -v tflint >/dev/null 2>&1; then
+          tflint --init
+          tflint
+        else
+          echo "tflint not found, skipping"
+        fi
+      continue-on-error: true
+
+    - name: Run tfsec
+      id: tfsec
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        if command -v tfsec >/dev/null 2>&1; then
+          tfsec .
+        else
+          echo "tfsec not found, skipping"
+        fi
+      continue-on-error: true
+
+    - name: Run checkov
+      id: checkov
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        if command -v checkov >/dev/null 2>&1; then
+          checkov -d .
+        else
+          echo "checkov not found, skipping"
+        fi
+      continue-on-error: true
+
+    - name: Validate Examples
+      id: validate-examples
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        echo "Validating all examples for ${{ matrix.module }}..."
+        
+        for example_dir in examples/*/; do
+          if [[ -f "${example_dir}main.tf" ]]; then
+            example_name=$(basename "$example_dir")
+            echo "Validating example: $example_name"
+            
+            cd "$example_dir"
+            terraform init -upgrade
+            terraform validate -no-color
+            terraform plan -detailed-exitcode -no-color -input=false
+            cd ../..
+          fi
+        done
+
+    - name: Check Documentation
+      id: docs
+      working-directory: modules/${{ matrix.module }}
+      run: |
+        # Check if README.md exists and is not empty
+        if [[ ! -f "README.md" ]] || [[ ! -s "README.md" ]]; then
+          echo "README.md is missing or empty"
+          exit 1
+        fi
+        
+        # Check if CHANGELOG.md exists
+        if [[ ! -f "CHANGELOG.md" ]]; then
+          echo "CHANGELOG.md is missing"
+          exit 1
+        fi
+        
+        echo "✅ Documentation checks passed"
+
+    - name: Comment on PR
+      if: failure() && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const module = '${{ matrix.module }}';
+          const tfVersion = '${{ matrix.terraform-version }}';
+          
+          let message = `❌ **${module} module validation failed**\n\n`;
+          message += `- **Terraform Version**: ${tfVersion}\n`;
+          message += `- **Module**: ${module}\n\n`;
+          
+          if ('${{ steps.fmt.outcome }}' === 'failure') {
+            message += `- **Format Check**: Failed - Run \`terraform fmt -recursive\`\n`;
+          }
+          if ('${{ steps.validate-module.outcome }}' === 'failure') {
+            message += `- **Module Validation**: Failed\n`;
+          }
+          if ('${{ steps.tflint.outcome }}' === 'failure') {
+            message += `- **TFLint**: Failed\n`;
+          }
+          if ('${{ steps.tfsec.outcome }}' === 'failure') {
+            message += `- **TFSec**: Failed\n`;
+          }
+          if ('${{ steps.checkov.outcome }}' === 'failure') {
+            message += `- **Checkov**: Failed\n`;
+          }
+          if ('${{ steps.validate-examples.outcome }}' === 'failure') {
+            message += `- **Examples Validation**: Failed\n`;
+          }
+          if ('${{ steps.docs.outcome }}' === 'failure') {
+            message += `- **Documentation Check**: Failed\n`;
+          }
+          
+          message += `\n🔗 [View logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: message
+          });
+
+    - name: Summary
+      if: always()
+      run: |
+        echo "## ${{ matrix.module }} Module Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Module**: ${{ matrix.module }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Terraform Version**: ${{ matrix.terraform-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Format Check**: ${{ steps.fmt.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Module Validation**: ${{ steps.validate-module.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **TFLint**: ${{ steps.tflint.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **TFSec**: ${{ steps.tfsec.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Checkov**: ${{ steps.checkov.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Examples Validation**: ${{ steps.validate-examples.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Documentation**: ${{ steps.docs.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  overall-status:
+    name: Overall Status
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-changed-modules]
+    if: always()
+    
+    steps:
+    - name: Determine overall status
+      run: |
+        if [[ "${{ needs.detect-changes.outputs.changed-modules }}" == "[]" ]]; then
+          echo "✅ No modules to validate"
+          exit 0
+        fi
+        
+        if [[ "${{ needs.validate-changed-modules.result }}" == "success" ]]; then
+          echo "✅ All validations passed"
+        else
+          echo "❌ Some validations failed"
+          exit 1
+        fi

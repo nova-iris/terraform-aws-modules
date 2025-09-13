@@ -78,24 +78,22 @@ jobs:
         
         echo "Changed modules: $UNIQUE_MODULES"
         
-        # Create JSON matrix for workflow dispatch
-        MATRIX_JSON='['
+        # Create JSON array for matrix
+        MODULES_JSON='['
         first=true
         for module in $UNIQUE_MODULES; do
           if [[ "$first" == "true" ]]; then
             first=false
           else
-            MATRIX_JSON+=','
+            MODULES_JSON+=','
           fi
-          MATRIX_JSON+="{\"module\":\"$module\"}"
+          MODULES_JSON+="\"$module\""
         done
-        MATRIX_JSON+=']'
+        MODULES_JSON+=']'
         
         # Set outputs
-        echo "modules=$UNIQUE_MODULES" >> $GITHUB_OUTPUT
-        echo "matrix-json=$MATRIX_JSON" >> $GITHUB_OUTPUT
+        echo "modules=$MODULES_JSON" >> $GITHUB_OUTPUT
         echo "Detected modules: $UNIQUE_MODULES"
-        echo "Matrix JSON: $MATRIX_JSON"
 
   trigger-validations:
     name: Trigger Module Validations
@@ -104,7 +102,7 @@ jobs:
     if: needs.detect-changes.outputs.changed-modules != ''
     strategy:
       matrix:
-        module: ${{ fromJson(needs.detect-changes.outputs.matrix-json) }}
+        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
       fail-fast: false  # Continue even if some validations fail
     
     steps:
@@ -113,12 +111,12 @@ jobs:
       with:
         fetch-depth: 0
         
-    - name: Trigger ${{ matrix.module }} Validation
+    - name: Trigger Module Validation for ${{ matrix.module }}
       run: |
         # Check if the workflow exists first
         if gh workflow list | grep -q "validate-module.yml"; then
           # Trigger the module-specific validation workflow
-          gh workflow run validate-module.yml -f module=${{ matrix.module }} -f ref=${{ github.sha }} || echo "⚠️ Could not trigger validation for module ${{ matrix.module }} (expected in PRs)"
+          gh workflow run validate-module.yml -f module="${{ matrix.module }}" -f ref=${{ github.sha }} || echo "⚠️ Could not trigger validation for module ${{ matrix.module }} (expected in PRs)"
           echo "✅ Triggered validation for module: ${{ matrix.module }}"
         else
           echo "⚠️ validate-module.yml workflow not found, skipping dispatch for module: ${{ matrix.module }}"

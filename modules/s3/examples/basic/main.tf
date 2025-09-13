@@ -10,7 +10,7 @@ module "s3" {
   source = "../../../s3"
 
   bucket_name = "basic-s3-bucket-${random_suffix.unique.result}"
-  
+
   tags = {
     Environment = "dev"
     Project     = "basic-s3-example"

@@ -8,28 +8,185 @@ on:
         required: true
         default: 'vpc,ec2,ecs,lambda,s3'
         type: string
+      run-integration-tests:
+        description: 'Run integration tests in AWS sandbox'
+        required: false
+        default: 'true'
+        type: boolean
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
 
 jobs:
-  prepare-modules:
+  detect-changed-modules:
     runs-on: ubuntu-latest
     outputs:
-      modules-json: ${{ steps.prepare.outputs.modules-json }}
+      changed-modules: ${{ steps.detect.outputs.modules }}
+      modules-json: ${{ steps.detect.outputs.modules-json }}
     steps:
-    - name: Prepare modules JSON
-      id: prepare
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Detect Changed Modules
+      id: detect
       run: |
-        MODULES_INPUT="${{ github.event.inputs.modules }}"
-        # Convert comma-separated to JSON array
-        MODULES_JSON=$(echo "$MODULES_INPUT" | sed 's/,/","/g' | sed 's/^/["/; s/$/"]/')
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          # For push events, detect changed modules
+          if [[ -z "${{ github.event.before }}" ]]; then
+            BASE_REF="${{ github.sha }}~1"
+          else
+            BASE_REF="${{ github.event.before }}"
+          fi
+          HEAD_REF="${{ github.sha }}"
+          
+          echo "Comparing $BASE_REF...$HEAD_REF"
+          
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" || true)
+          
+          # Extract module directories from changed files
+          CHANGED_MODULES=()
+          
+          for file in $CHANGED_FILES; do
+            if [[ "$file" =~ ^modules/([^/]+)/ ]]; then
+              module="${BASH_REMATCH[1]}"
+              # Only include modules that exist and have examples
+              if [[ -d "modules/$module" ]] && [[ -n "$(ls modules/$module/examples/ 2>/dev/null)" ]]; then
+                CHANGED_MODULES+=("$module")
+              fi
+            fi
+          done
+          
+          # Remove duplicates and sort
+          UNIQUE_MODULES=$(echo "${CHANGED_MODULES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          
+          # If no modules changed, check if this is a workflow change
+          if [[ -z "$UNIQUE_MODULES" ]] || [[ "$UNIQUE_MODULES" == " " ]]; then
+            if echo "$CHANGED_FILES" | grep -q "\.github/workflows/"; then
+              echo "Workflow file changed, processing all modules"
+              UNIQUE_MODULES="vpc ec2 ecs lambda s3"
+            else
+              echo "No modules changed, skipping release"
+              UNIQUE_MODULES=""
+            fi
+          fi
+        else
+          # For workflow dispatch, use input modules
+          MODULES_INPUT="${{ github.event.inputs.modules }}"
+          UNIQUE_MODULES="$MODULES_INPUT"
+        fi
+        
+        echo "Modules to process: $UNIQUE_MODULES"
+        
+        # Create JSON array for matrix
+        if [[ -n "$UNIQUE_MODULES" ]]; then
+          MODULES_JSON='['
+          first=true
+          for module in $UNIQUE_MODULES; do
+            if [[ "$first" == "true" ]]; then
+              first=false
+            else
+              MODULES_JSON+=','
+            fi
+            MODULES_JSON+="\"$module\""
+          done
+          MODULES_JSON+=']'
+        else
+          MODULES_JSON='[]'
+        fi
+        
+        # Set outputs
+        echo "modules=$MODULES_JSON" >> $GITHUB_OUTPUT
         echo "modules-json=$MODULES_JSON" >> $GITHUB_OUTPUT
 
-  release-modules:
+  integration-test:
+    name: Integration Test ${{ matrix.module }}
     runs-on: ubuntu-latest
-    needs: prepare-modules
+    needs: detect-changed-modules
+    if: needs.detect-changed-modules.outputs.changed-modules != '[]' && (github.event.inputs.run-integration-tests == 'true' || github.event_name == 'push')
+    strategy:
+      matrix:
+        module: ${{ fromJson(needs.detect-changed-modules.outputs.modules-json) }}
+      fail-fast: false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 'latest'
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.VTD_AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.VTD_AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+        
+    - name: Run Integration Tests
+      working-directory: modules/${{ matrix.module }}/examples/basic
+      env:
+        TF_IN_AUTOMATION: true
+        TF_WORKSPACE: ci-${{ github.run_number }}-${{ matrix.module }}
+      run: |
+        echo "🧪 Running integration tests for ${{ matrix.module }}"
+        
+        # Create unique workspace for this test
+        terraform init -upgrade
+        terraform workspace new "$TF_WORKSPACE" || terraform workspace select "$TF_WORKSPACE"
+        
+        # Apply infrastructure
+        terraform apply -auto-approve -input=false
+        
+        # Test that resources were created (optional health check)
+        echo "✅ Infrastructure deployed successfully"
+        
+        # Destroy infrastructure
+        terraform destroy -auto-approve -input=false
+        
+        # Delete workspace
+        terraform workspace select default
+        terraform workspace delete "$TF_WORKSPACE"
+        
+        echo "✅ Integration tests completed successfully"
+        
+    - name: Cleanup on failure
+      if: failure()
+      working-directory: modules/${{ matrix.module }}/examples/basic
+      env:
+        TF_IN_AUTOMATION: true
+        TF_WORKSPACE: ci-${{ github.run_number }}-${{ matrix.module }}
+      run: |
+        echo "🧹 Cleaning up on failure..."
+        
+        # Try to destroy any remaining resources
+        if terraform workspace list | grep -q "$TF_WORKSPACE"; then
+          terraform workspace select "$TF_WORKSPACE"
+          terraform destroy -auto-approve -input=false || true
+          terraform workspace select default
+          terraform workspace delete "$TF_WORKSPACE" || true
+        fi
+        
+        echo "✅ Cleanup completed"
+
+  release-modules:
+    name: Release ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    needs: [detect-changed-modules, integration-test]
+    if: needs.detect-changed-modules.outputs.changed-modules != '[]'
     
     strategy:
       matrix:
-        module: ${{ fromJson(needs.prepare-modules.outputs.modules-json) }}
+        module: ${{ fromJson(needs.detect-changed-modules.outputs.modules-json) }}
+      fail-fast: false
     
     steps:
     - name: Checkout code
@@ -113,6 +270,60 @@ jobs:
         NEW_VERSION="$MAJOR.$MINOR.$PATCH"
         echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
         
+    - name: Update CHANGELOG.md
+      id: changelog
+      run: |
+        MODULE=${{ matrix.module }}
+        NEW_VERSION=${{ steps.new-version.outputs.new-version }}
+        CHANGELOG_FILE="modules/${MODULE}/CHANGELOG.md"
+        
+        # Create changelog entry
+        CHANGELOG_ENTRY="## $MODULE $NEW_VERSION ($(date +%Y-%m-%d))
+
+### Changes
+
+${{ steps.version.outputs.commits }}
+
+---
+"
+
+        # Update changelog file
+        if [[ -f "$CHANGELOG_FILE" ]]; then
+          # Prepend new entry to existing changelog
+          mv "$CHANGELOG_FILE" "$CHANGELOG_FILE.tmp"
+          echo "$CHANGELOG_ENTRY" > "$CHANGELOG_FILE"
+          cat "$CHANGELOG_FILE.tmp" >> "$CHANGELOG_FILE"
+          rm "$CHANGELOG_FILE.tmp"
+        else
+          # Create new changelog file
+          echo "# Changelog
+
+All notable changes to this module will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+$CHANGELOG_ENTRY" > "$CHANGELOG_FILE"
+        fi
+        
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG_ENTRY" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        echo "✅ Updated CHANGELOG.md"
+
+    - name: Commit changelog changes
+      run: |
+        MODULE=${{ matrix.module }}
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        git add "modules/${MODULE}/CHANGELOG.md"
+        git commit -m "docs: Update changelog for $MODULE release
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
     - name: Create and push tag
       id: tag
       run: |
@@ -120,34 +331,12 @@ jobs:
         NEW_VERSION=${{ steps.new-version.outputs.new-version }}
         TAG="${MODULE}-${NEW_VERSION}"
         
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
         git tag -a $TAG -m "Release $MODULE version $NEW_VERSION"
         git push origin $TAG
         
         echo "tag=$TAG" >> $GITHUB_OUTPUT
         
-    - name: Generate changelog
-      id: changelog
-      run: |
-        MODULE=${{ matrix.module }}
-        NEW_VERSION=${{ steps.new-version.outputs.new-version }}
-        TAG=${{ steps.tag.outputs.tag }}
-        
-        CHANGELOG="## $MODULE $NEW_VERSION ($(date +%Y-%m-%d))
-        
-        ### Changes
-        
-        ${{ steps.version.outputs.commits }}
-        
-        ---
-        
-        "
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        echo "$CHANGELOG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
+            
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       env:

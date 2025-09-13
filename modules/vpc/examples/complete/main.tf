@@ -17,10 +17,10 @@ module "vpc" {
   public_subnets   = ["172.16.101.0/24", "172.16.102.0/24", "172.16.103.0/24", "172.16.104.0/24"]
   database_subnets = ["172.16.201.0/24", "172.16.202.0/24", "172.16.203.0/24", "172.16.204.0/24"]
 
-  enable_nat_gateway      = true
-  single_nat_gateway      = false
-  one_nat_gateway_per_az  = true
-  enable_vpn_gateway      = true
+  enable_nat_gateway     = true
+  single_nat_gateway     = false
+  one_nat_gateway_per_az = true
+  enable_vpn_gateway     = true
 
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -41,17 +41,17 @@ module "vpc" {
   }
 
   public_subnet_tags = {
-    "Type"                        = "Public"
-    "Network"                     = "External"
-    "kubernetes.io/cluster/prod"  = "shared"
-    "kubernetes.io/role/elb"      = "1"
-    "Backup"                      = "daily"
+    "Type"                       = "Public"
+    "Network"                    = "External"
+    "kubernetes.io/cluster/prod" = "shared"
+    "kubernetes.io/role/elb"     = "1"
+    "Backup"                     = "daily"
   }
 
   private_subnet_tags = {
     "Type"                            = "Private"
     "Network"                         = "Internal"
-    "kubernetes.io/cluster/prod"       = "shared"
+    "kubernetes.io/cluster/prod"      = "shared"
     "kubernetes.io/role/internal-elb" = "1"
     "Backup"                          = "daily"
   }

@@ -32,10 +32,10 @@ module "vpc" {
   public_subnets   = ["172.16.101.0/24", "172.16.102.0/24", "172.16.103.0/24", "172.16.104.0/24"]
   database_subnets = ["172.16.201.0/24", "172.16.202.0/24", "172.16.203.0/24", "172.16.204.0/24"]
 
-  enable_nat_gateway      = true
-  single_nat_gateway      = false
-  one_nat_gateway_per_az  = true
-  enable_vpn_gateway      = true
+  enable_nat_gateway     = true
+  single_nat_gateway     = false
+  one_nat_gateway_per_az = true
+  enable_vpn_gateway     = true
 
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -101,15 +101,15 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 module "ec2" {
   source = "../../../ec2"
 
-  name           = "complete-ec2-instance"
-  ami            = data.aws_ami.amazon_linux_2.id
-  instance_type  = "c5.large"
-  key_name       = "production-key"
-  monitoring     = true
+  name          = "complete-ec2-instance"
+  ami           = data.aws_ami.amazon_linux_2.id
+  instance_type = "c5.large"
+  key_name      = "production-key"
+  monitoring    = true
 
-  subnet_id                      = module.vpc.private_subnets[0]
-  vpc_security_group_ids         = [aws_security_group.ec2_sg.id]
-  associate_public_ip_address    = false
+  subnet_id                   = module.vpc.private_subnets[0]
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  associate_public_ip_address = false
 
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
 
@@ -139,7 +139,7 @@ module "ec2" {
                 },
                 "metrics": {
                   "append_dimensions": {
-                    "InstanceId": "${aws:InstanceId}"
+                    "InstanceId": "$${aws:InstanceId}"
                   },
                   "metrics_collected": {
                     "mem": {
