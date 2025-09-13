@@ -79,19 +79,6 @@ module "ec2" {
     }
   ]
 
-  ebs_block_device = [
-    {
-      delete_on_termination = true
-      device_name           = "/dev/sdf"
-      encrypted             = true
-      iops                  = 5000
-      kms_key_id            = null
-      snapshot_id           = null
-      volume_size           = 100
-      volume_type           = "gp3"
-    }
-  ]
-
   tags = {
     Environment = "staging"
     Project     = "advanced-ec2-example"
