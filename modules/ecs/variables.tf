@@ -16,23 +16,6 @@ variable "service_name" {
   default     = "ecs-service"
 }
 
-variable "cluster_settings" {
-  description = "Cluster settings"
-  type        = list(map(string))
-  default     = []
-}
-
-variable "cluster_configuration" {
-  description = "Cluster configuration"
-  type        = list(map(string))
-  default     = []
-}
-
-variable "fargate_capacity_providers" {
-  description = "Fargate capacity providers configuration"
-  type        = map(any)
-  default     = {}
-}
 
 variable "task_cpu" {
   description = "CPU units for the task"

@@ -15,12 +15,6 @@ module "ecs_cluster" {
 
   cluster_name = var.cluster_name
 
-  cluster_settings = var.cluster_settings
-
-  cluster_configuration = var.cluster_configuration
-
-  fargate_capacity_providers = var.fargate_capacity_providers
-
   tags = var.tags
 }
 

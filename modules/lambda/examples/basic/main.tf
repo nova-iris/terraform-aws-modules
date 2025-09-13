@@ -47,4 +47,6 @@ module "lambda" {
     Project     = "basic-lambda-example"
     Purpose     = "validation-function"
   }
+
+  depends_on = [local_file.lambda_function]
 }
