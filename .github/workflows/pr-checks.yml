@@ -102,7 +102,7 @@ jobs:
     strategy:
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.changed-modules) }}
-        terraform-version: ['1.0', '1.5', 'latest']
+        terraform-version: ['1.6', '1.8', 'latest']
       fail-fast: false
     
     steps:
