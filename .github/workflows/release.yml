@@ -189,7 +189,7 @@ jobs:
       working-directory: modules/${{ matrix.module }}
       env:
         TF_IN_AUTOMATION: true
-        TF_WORKSPACE: ci-${{ github.run_number }}-${{ matrix.module }}
+        CI_WORKSPACE: ci-${{ github.run_number }}-${{ matrix.module }}
       run: |
         echo "🧪 Running integration tests for ${{ matrix.module }}"
         
@@ -212,7 +212,7 @@ jobs:
         
         # Create unique workspace for this test
         terraform init -upgrade
-        terraform workspace new "$TF_WORKSPACE" || terraform workspace select "$TF_WORKSPACE"
+        terraform workspace new "$CI_WORKSPACE" || terraform workspace select "$CI_WORKSPACE"
         
         # Apply infrastructure
         terraform apply -auto-approve -input=false
@@ -225,7 +225,7 @@ jobs:
         
         # Delete workspace
         terraform workspace select default
-        terraform workspace delete "$TF_WORKSPACE"
+        terraform workspace delete "$CI_WORKSPACE"
         
         echo "✅ Integration tests completed successfully"
         
@@ -234,7 +234,7 @@ jobs:
       working-directory: modules/${{ matrix.module }}
       env:
         TF_IN_AUTOMATION: true
-        TF_WORKSPACE: ci-${{ github.run_number }}-${{ matrix.module }}
+        CI_WORKSPACE: ci-${{ github.run_number }}-${{ matrix.module }}
       run: |
         echo "🧹 Cleaning up on failure..."
         
@@ -251,11 +251,11 @@ jobs:
           cd "$EXAMPLE_DIR"
           
           # Try to destroy any remaining resources
-          if terraform workspace list | grep -q "$TF_WORKSPACE"; then
-            terraform workspace select "$TF_WORKSPACE"
+          if terraform workspace list | grep -q "$CI_WORKSPACE"; then
+            terraform workspace select "$CI_WORKSPACE"
             terraform destroy -auto-approve -input=false || true
             terraform workspace select default
-            terraform workspace delete "$TF_WORKSPACE" || true
+            terraform workspace delete "$CI_WORKSPACE" || true
           fi
         fi
         
