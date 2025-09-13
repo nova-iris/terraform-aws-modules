@@ -101,7 +101,7 @@ jobs:
     needs: detect-changes
     strategy:
       matrix:
-        module: ${{ fromJson(needs.detect-changes.outputs.modules) }}
+        module: ${{ fromJson(needs.detect-changes.outputs.changed-modules) }}
         terraform-version: ['1.0', '1.5', 'latest']
       fail-fast: false
     
