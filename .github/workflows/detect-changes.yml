@@ -118,7 +118,7 @@ jobs:
       continue-on-error: true
       with:
         script: |
-          const moduleName = '${{ matrix.module }}';
+          const moduleName = context.payload.inputs?.module || context.job?.matrix?.module || 'unknown';
           
           try {
             // Check if the workflow exists first
