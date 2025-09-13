@@ -118,7 +118,7 @@ jobs:
       continue-on-error: true
       with:
         script: |
-          const moduleName = context.payload.inputs?.module || context.job?.matrix?.module || 'unknown';
+          const moduleName = process.env.MODULE_NAME;
           
           try {
             // Check if the workflow exists first
@@ -152,3 +152,5 @@ jobs:
             console.log(`This is expected when validate-module.yml doesn't exist in the target branch`);
             // Don't fail the job - this is expected behavior in PRs
           }
+    env:
+      MODULE_NAME: ${{ matrix.module }}
